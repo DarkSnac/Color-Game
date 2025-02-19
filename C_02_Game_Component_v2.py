@@ -162,7 +162,8 @@ class Play:
         # Create four buttons in a 2 x 2 grid
         for item in range(0, 4):
             self.color_button = Button(self.color_frame, font=body_font,
-                                       text="Color Name", width=15)
+                                       text="Color Name", width=15,
+                                       command=partial(self.round_results, item))
             self.color_button.grid(row=item // 2,
                                    column=item % 2,
                                    padx=5, pady=5)
@@ -190,6 +191,11 @@ class Play:
             make_control_button.grid(row=item[5], column=item[6], pady=5, padx=5)
 
             control_ref_list.append(make_control_button)
+
+        # Retrieve next, stats and end button so that they can be configured
+        self.next_button = control_ref_list[0]
+        self.stats_button = control_ref_list[2]
+        self.end_game_button = control_ref_list[3]
 
         # Once interface has been created, invoke new
         # round function for first round.
@@ -226,6 +232,33 @@ class Play:
                         bg=self.round_color_list[count][0],
                         text=self.round_color_list[count][0],
                         state=NORMAL)
+
+        self.next_button.config(state=DISABLED)
+
+    def round_results(self, user_choice):
+        """
+        Retrieves which button was pushed (index 0 - 3), retrieves
+        score and then compares it with median, updates results and
+        adds results to stats list.
+        """
+
+        # Get user score and color based on button press...
+        score = int(self.round_color_list[user_choice][1])
+
+        # Alternate way to get button name. Good for if buttons have been scrambled
+        color_name = self.color_button_ref[user_choice].cget('text')
+
+        # Retrieve target score and compare with user score to find round result
+        target = self.target_score.get()
+
+        if score >= target:
+            result_text = f"Success! {color_name} earned you {score} points."
+            result_bg = "#82B366"
+        else:
+            result_text = f"Oops {color_name} ({score}) is less than the target."
+            result_bg = "#F8CECC"
+
+        self.results_label.config(text=result_text, bg=result_bg)
 
     def close_play(self):
         # Reshow root (ie: choose rounds) and end
