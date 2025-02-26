@@ -185,10 +185,11 @@ class Play:
         self.rounds_wanted = IntVar()
         self.rounds_wanted.set(how_many)
 
+        self.rounds_won = IntVar()
+
         # Color lists and score list
         self.round_color_list = []
         self.all_scores_list = []
-        self.all_medians_list = []
         self.all_high_score_list = []
 
         self.play_box = Toplevel()
@@ -246,7 +247,7 @@ class Play:
         control_button_list = [
             [self.game_frame, "Next Round", "#0057D8", self.new_round, 21, 5, None],
             [self.hints_stats_frame, "Hints", "#FF8000", self.to_hints, 10, 0, 0],
-            [self.hints_stats_frame, "Stats", "#333333", "", 10, 0, 1],
+            [self.hints_stats_frame, "Stats", "#333333", self.to_stats, 10, 0, 1],
             [self.game_frame, "End", "#990000", self.close_play, 21, 7, None]
         ]
 
@@ -266,6 +267,9 @@ class Play:
         self.hints_button = control_ref_list[1]
         self.stats_button = control_ref_list[2]
         self.end_game_button = control_ref_list[3]
+
+        # Stats button disabled if user hasn't played a round
+        self.stats_button.config(state=DISABLED)
 
         # Once interface has been created, invoke new
         # round function for first round.
@@ -290,8 +294,6 @@ class Play:
         # Set target score as median (for later comparison)
         self.target_score.set(median)
 
-        self.all_medians_list.append(median)
-
         self.all_high_score_list.append(highest)
 
         # Update heading and score to beat labels. "hide" results label
@@ -315,6 +317,8 @@ class Play:
         score and then compares it with median, updates results and
         adds results to stats list.
         """
+        # Enable stats button after one round has been played
+        self.stats_button.config(state=NORMAL)
 
         # Get user score and color based on button press...
         score = int(self.round_color_list[user_choice][1])
@@ -329,17 +333,17 @@ class Play:
             result_text = f"Success! {color_name} earned you {score} points."
             result_bg = "#82B366"
             self.all_scores_list.append(score)
+
+            rounds_won = self.rounds_won.get()
+            rounds_won += 1
+            self.rounds_won.set(rounds_won)
+
         else:
             result_text = f"Oops {color_name} ({score}) is less than the target."
             result_bg = '#F8CECC'
             self.all_scores_list.append(0)
 
         self.results_label.config(text=result_text, bg=result_bg)
-
-        # Printing area to generate text data for stats (delete when done)
-        print("All Scores", self.all_scores_list)
-        print("All Medians:", self.all_medians_list)
-        print("Highest Scores: ", self.all_high_score_list)
 
         # Enable stats & next buttons, disable color buttons
         self.next_button.config(state=NORMAL)
@@ -367,6 +371,16 @@ class Play:
         Displays hints for playing game
         """
         DisplayHints(self)
+
+    def to_stats(self):
+        """
+        Retrieves everything we need to display the game / round statistics
+        """
+        # IMPORTANT: retrieve number of rounds won as a
+        # number (rather than the 'self' container)
+        rounds_won = self.rounds_won.get()
+        stats_bundle = [rounds_won, self.all_scores_list, self.all_high_score_list]
+        Stats(self, stats_bundle)
 
 
 class DisplayHints:
@@ -436,6 +450,116 @@ class DisplayHints:
         # Put help button back to normal...
         partner.hints_button.config(state=NORMAL)
         self.hint_box.destroy()
+
+
+class Stats:
+    """
+    Displays stats for color quest game
+    """
+
+    def __init__(self, partner, all_stats_info):
+
+        # Extract information from master list...
+        rounds_won = all_stats_info[0]
+        user_scores = all_stats_info[1]
+        high_scores = all_stats_info[2]
+
+        # Sort user scores to find high score...
+        user_scores.sort()
+
+        # setup dialogue box and background color
+        self.stat_box = Toplevel()
+
+        # Disable help button
+        partner.stats_button.config(state=DISABLED)
+
+        # If users press cross at top, closes help
+        # and enables help button
+        self.stat_box.protocol('WM_DELETE_WINDOW',
+                               partial(self.close_stats, partner))
+
+        # Set up the frame
+        self.stat_frame = Frame(self.stat_box, width=350)
+        self.stat_frame.grid()
+
+        # Math to populate stats dialogue
+        rounds_played = len(user_scores)
+
+        success_rate = rounds_won / rounds_played * 100
+        total_score = sum(user_scores)
+        max_possible = sum(high_scores)
+
+        best_score = user_scores[-1]
+        average_score = total_score / rounds_played
+
+        # Strings for stats labels
+
+        success_string = f"Success Rate: {rounds_won} / {rounds_played}" \
+                         f" ({success_rate:.0f}%)"
+        total_score_string = f"Total Score: {total_score}"
+        max_possible_string = f"Maximum Possible Score: {max_possible}"
+        best_score_string = f"Best Score: {best_score}"
+
+        # Custom comment text and formatting
+        if total_score == max_possible:
+            comment_string = "Amazing! You got the highest " \
+                             "possible score!"
+            comment_color = "#D5E8D4"
+        elif total_score == 0:
+            comment_string = "Oops - You've lost every round! \n" \
+                             "You might want to look at the hints!"
+            comment_color = "#F8CECC"
+            best_score_string = "Best Score: N/A"
+        else:
+            comment_string = ""
+            comment_color = "#F0F0F0"
+
+        average_score_string = f"Average Score: {average_score:.0f}\n"
+
+        heading_font = "Arial 16 bold"
+        normal_font = "Arial 14"
+        comment_font = "Arial 13"
+
+        # Label list (text | font | 'sticky')
+        all_stats_strings = [
+            ["Statistics", heading_font, ""],
+            [success_string, normal_font, "W"],
+            [total_score_string, normal_font, "W"],
+            [max_possible_string, normal_font, "W"],
+            [comment_string, comment_font, "W"],
+            ["\nRound Stats", heading_font, ""],
+            [best_score_string, normal_font, "W"],
+            [average_score_string, normal_font, "W"]
+        ]
+
+        stats_label_ref_list = []
+        for count, item in enumerate(all_stats_strings):
+            self.stats_label = Label(self.stat_frame, text=item[0], font=item[1],
+                                     anchor="w", justify="left",
+                                     padx=30, pady=5)
+            self.stats_label.grid(row=count, sticky=item[2], padx=10)
+            stats_label_ref_list.append(self.stats_label)
+
+        # Configure comment label background (for all won / all lost)
+        stats_comment_label = stats_label_ref_list[4]
+        stats_comment_label.config(bg=comment_color)
+
+        # Set up dismiss button
+        self.dismiss_button = Button(self.stat_frame,
+                                     font=("Arial", "16", "bold"),
+                                     text="Dismiss", bg="#333333",
+                                     fg="#FFFFFF", width=20,
+                                     command=partial(self.close_stats,
+                                                     partner))
+        self.dismiss_button.grid(row=8, padx=10, pady=10)
+
+    def close_stats(self, partner):
+        """
+       Closes help dialogue box (and enables help button)
+        """
+        # Put help button back to normal...
+        partner.stats_button.config(state=NORMAL)
+        self.stat_box.destroy()
 
 
 # Main routine
